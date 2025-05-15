@@ -162,21 +162,30 @@ public class MediaPicker extends CordovaPlugin {
                 cordova.getThreadPool().execute(new Runnable() {
                     public void run() {
                         try {
-                            int index=0;
-                            for(Media media:select){
-                                JSONObject object=new JSONObject();
-                                object.put("path",media.path);
-                                object.put("uri",Uri.fromFile(new File(media.path)));//Uri.fromFile(file).toString() || [NSURL fileURLWithPath:filePath] absoluteString]
-                                object.put("size",media.size);
-                                object.put("name",media.name);
-                                object.put("index",index);
-                                object.put("mediaType",media.mediaType==3?"video":"image");
+                            int index = 0;
+                            for (Media media : select) {
+                                File originalFile = new File(media.path);
+                                File targetFile = originalFile;
+                
+                                // Only copy videos to accessible directory
+                                if (media.mediaType == 3) {
+                                    targetFile = copyToAppDirectory(originalFile);
+                                }
+                
+                                JSONObject object = new JSONObject();
+                                object.put("path", targetFile.getAbsolutePath());
+                                object.put("uri", Uri.fromFile(targetFile).toString());
+                                object.put("size", targetFile.length());
+                                object.put("name", targetFile.getName());
+                                object.put("index", index);
+                                object.put("mediaType", media.mediaType == 3 ? "video" : "image");
                                 jsonArray.put(object);
                                 index++;
                             }
                             MediaPicker.this.callback.success(jsonArray);
-                        } catch (JSONException e) {
+                        } catch (Exception e) {
                             e.printStackTrace();
+                            MediaPicker.this.callback.error("Failed to process selected media: " + e.getMessage());
                         }
                     }
                 });
@@ -390,5 +399,26 @@ public class MediaPicker extends CordovaPlugin {
             e.printStackTrace();
         }
         callbackContext.success(data);
+    }
+
+    private File copyToAppDirectory(File originalFile) throws IOException {
+        File targetDir = cordova.getActivity().getExternalCacheDir();
+        if (targetDir == null) {
+            throw new IOException("Unable to access external cache directory");
+        }
+    
+        String fileName = "copied_" + System.currentTimeMillis() + "_" + originalFile.getName();
+        File copiedFile = new File(targetDir, fileName);
+    
+        try (FileInputStream in = new FileInputStream(originalFile);
+             FileOutputStream out = new FileOutputStream(copiedFile)) {
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = in.read(buffer)) > 0) {
+                out.write(buffer, 0, length);
+            }
+        }
+    
+        return copiedFile;
     }
 }
