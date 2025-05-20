@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.Log;
+import android.app.Activity;
 
 import com.dmcbig.mediapicker.PickerActivity;
 import com.dmcbig.mediapicker.PickerConfig;
@@ -189,6 +190,10 @@ public class MediaPicker extends CordovaPlugin {
                         }
                     }
                 });
+            } else if (requestCode == 200 && resultCode == Activity.RESULT_CANCELED) {
+                if (this.callback != null) {
+                    this.callback.error("User cancelled picker");
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
