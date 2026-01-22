@@ -3,6 +3,7 @@
 #import <Cordova/CDV.h>
 #import "DmcPickerViewController.h"
 #import "UIImage+CropScaleOrientation.h"
+#import <AVFoundation/AVFoundation.h>
 @interface MediaPicker : CDVPlugin <DmcPickerDelegate>{
   // Member variables go here.
     NSString* callbackId;
