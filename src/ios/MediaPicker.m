@@ -410,4 +410,56 @@
     return mimeType;
 }
 
+- (void)getVideoDuration:(CDVInvokedUrlCommand*)command
+{
+    NSString *uri = [command.arguments firstObject];
+
+    if (!uri || uri.length == 0) {
+        CDVPluginResult *res =
+            [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                              messageAsString:@"Missing video uri"];
+        [self.commandDelegate sendPluginResult:res callbackId:command.callbackId];
+        return;
+    }
+
+    NSURL *url = nil;
+
+    // Handle both "file://..." and raw paths
+    if ([uri hasPrefix:@"file://"]) {
+        url = [NSURL URLWithString:uri];
+    } else {
+        url = [NSURL fileURLWithPath:uri];
+    }
+
+    AVURLAsset *asset = [AVURLAsset URLAssetWithURL:url options:nil];
+    NSArray *keys = @[@"duration"];
+
+    __weak typeof(self) weakSelf = self;
+    [asset loadValuesAsynchronouslyForKeys:keys completionHandler:^{
+        NSError *error = nil;
+        AVKeyValueStatus status =
+            [asset statusOfValueForKey:@"duration" error:&error];
+
+        if (status != AVKeyValueStatusLoaded || error) {
+            CDVPluginResult *res =
+                [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                                  messageAsString:@"Unable to read video duration"];
+            [weakSelf.commandDelegate sendPluginResult:res
+                                            callbackId:command.callbackId];
+            return;
+        }
+
+        Float64 seconds = CMTimeGetSeconds(asset.duration);
+        if (!isfinite(seconds) || seconds < 0) seconds = 0;
+
+        CDVPluginResult *res =
+            [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
+                              messageAsDouble:seconds];
+
+        [weakSelf.commandDelegate sendPluginResult:res
+                                        callbackId:command.callbackId];
+    }];
+}
+
+
 @end

@@ -37,7 +37,10 @@ var MediaPicker = {
     },
     getFileInfo:function(path, argType, success, error) { //type:"path"  or "uri"
         exec(success, error, "MediaPicker", "getFileInfo", [path,argType]);
-    }
+    },
+    getVideoDuration: function (uri, success, error) {
+        exec(success, error, "MediaPicker", "getVideoDuration", [uri]);
+    },
 };
 
 module.exports = MediaPicker;
