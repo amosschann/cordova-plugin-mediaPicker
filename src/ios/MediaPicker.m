@@ -435,7 +435,7 @@
     AVURLAsset *asset = [AVURLAsset URLAssetWithURL:url options:nil];
     NSArray *keys = @[@"duration"];
 
-    __weak typeof(self) weakSelf = self;
+    __weak MediaPicker *weakSelf = self;
     [asset loadValuesAsynchronouslyForKeys:keys completionHandler:^{
         NSError *error = nil;
         AVKeyValueStatus status =
