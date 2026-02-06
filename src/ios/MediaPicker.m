@@ -4,6 +4,7 @@
 #import "DmcPickerViewController.h"
 #import "UIImage+CropScaleOrientation.h"
 #import <AVFoundation/AVFoundation.h>
+#import <Photos/Photos.h>
 @interface MediaPicker : CDVPlugin <DmcPickerDelegate>{
   // Member variables go here.
     NSString* callbackId;
@@ -145,6 +146,9 @@
 -(void)videoToSandbox:(PHAsset *)asset dmcPickerPath:(NSString*)dmcPickerPath aListArray:(NSMutableArray*)aListArray selectArray:(NSMutableArray*)selectArray index:(int)index {
     PHVideoRequestOptions *options = [[PHVideoRequestOptions alloc] init];
     options.networkAccessAllowed = YES;
+    // Request original video file; without this iOS may return a compressed/transcoded copy (e.g. ~44MB instead of 500MB+)
+    options.version = PHVideoRequestOptionsVersionOriginal;
+    options.deliveryMode = PHVideoRequestOptionsDeliveryModeHighQualityFormat;
     options.progressHandler = ^(double progress, NSError *error, BOOL *stop, NSDictionary *info) {
         if (error) {
             NSLog(@"Error downloading video: %@", error.localizedDescription);
@@ -189,6 +193,38 @@
             if ([aListArray count] == [selectArray count]) {
                 [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArray:aListArray] callbackId:callbackId];
             }
+        } else {
+            // Fallback when iOS returns non-URL asset (e.g. some iCloud/edited videos): export with passthrough to get original
+            [[PHImageManager defaultManager] requestExportSessionForVideo:asset options:nil exportPreset:AVAssetExportPresetPassthrough resultHandler:^(AVAssetExportSession * _Nullable exportSession, NSDictionary * _Nullable info) {
+                if (!exportSession) {
+                    NSLog(@"Video export session nil for non-AVURLAsset");
+                    [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Video export not available"] callbackId:callbackId];
+                    return;
+                }
+                NSString *fullpath = [NSString stringWithFormat:@"%@/%@.mp4", dmcPickerPath, [[NSProcessInfo processInfo] globallyUniqueString]];
+                NSURL *outputURL = [NSURL fileURLWithPath:fullpath];
+                exportSession.outputFileType = AVFileTypeMPEG4;
+                exportSession.outputURL = outputURL;
+                [exportSession exportAsynchronouslyWithCompletionHandler:^{
+                    if (exportSession.status == AVAssetExportSessionStatusCompleted) {
+                        NSError *attrErr = nil;
+                        unsigned long long fileSize = [[[NSFileManager defaultManager] attributesOfItemAtPath:fullpath error:&attrErr] fileSize];
+                        NSNumber *size = attrErr ? @0 : [NSNumber numberWithUnsignedLongLong:fileSize];
+                        NSDictionary *dict = @{@"path": fullpath,
+                                               @"uri": [[NSURL fileURLWithPath:fullpath] absoluteString],
+                                               @"size": size,
+                                               @"mediaType": @"video",
+                                               @"index": @(index)};
+                        [aListArray addObject:dict];
+                        if ([aListArray count] == [selectArray count]) {
+                            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArray:aListArray] callbackId:callbackId];
+                        }
+                    } else {
+                        NSString *errMsg = exportSession.error ? exportSession.error.localizedDescription : @"Video export failed";
+                        [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:errMsg] callbackId:callbackId];
+                    }
+                }];
+            }];
         }
     }];
 }
